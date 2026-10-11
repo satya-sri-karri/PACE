@@ -4,7 +4,7 @@ import { JSDOM } from "jsdom";
 import { act, createElement } from "react";
 
 const html = await readFile(
-  new URL("../dist/index.html", import.meta.url),
+  new URL("../work/client/index.html", import.meta.url),
   "utf8",
 );
 const dom = new JSDOM(html, {
@@ -114,6 +114,33 @@ assert.equal(
   savedBeforePreview,
   "Preview leaves persisted ledger untouched",
 );
+await click(button("Pin for comparison"));
+assert.equal(
+  window.document.querySelectorAll(".scenario-table thead th").length,
+  3,
+);
+await click(button("Explore ₹1,400 extra income"));
+assert.ok(text(".bundle-summary").includes("2 decisions together"));
+assert.ok(text(".impact-results").includes("7,000"));
+assert.equal(window.localStorage.getItem("pace-budget-v1"), savedBeforePreview);
+await click(button("Pin for comparison"));
+assert.equal(
+  window.document.querySelectorAll(".scenario-table thead th").length,
+  4,
+);
+await inspect("comparison");
+await click(button("Apply to my plan"));
+assert.ok(text(".income-confirmation").includes("actually arrived"));
+await click(button("Record anyway"));
+let combined = JSON.parse(window.localStorage.getItem("pace-budget-v1"));
+assert.equal(combined.budget.transactions.length, 7);
+await click(window.document.querySelector('[aria-label="Undo last action"]'));
+assert.equal(
+  JSON.parse(window.localStorage.getItem("pace-budget-v1")).budget.transactions
+    .length,
+  5,
+);
+await click(button("₹1,800 purchase"));
 await click(button("Apply to my plan"));
 assert.ok(window.document.querySelector("dialog[open]"));
 await inspect("confirmation");
@@ -150,9 +177,36 @@ await click(window.document.querySelector('[aria-label="Close dialog"]'));
 await nav("Activity");
 await inspect("activity");
 assert.ok(text(".activity-list").includes("A little safety net"));
+assert.ok(text(".category-breakdown").includes("2,600"));
+await click(
+  window.document.querySelector('[aria-label="Edit A little café moment"]'),
+);
+const editAmount = window.document.querySelector('dialog input[name="amount"]');
+editAmount.value = "1e6";
+await click(button("Save to my plan"));
+assert.equal(editAmount.getAttribute("aria-invalid"), "true");
+assert.equal(editAmount.getAttribute("aria-describedby"), "form-error");
+assert.ok(text("#form-error").includes("valid amount"));
+assert.equal(window.document.activeElement.id, "form-error");
+await inspect("invalid-form");
+editAmount.value = "25.50";
+await click(button("Save to my plan"));
+assert.equal(
+  JSON.parse(
+    window.localStorage.getItem("pace-budget-v1"),
+  ).budget.transactions.find((t) => t.id === "cafe").amount,
+  2550,
+);
+await click(window.document.querySelector('[aria-label="Undo last action"]'));
+assert.equal(
+  JSON.parse(
+    window.localStorage.getItem("pace-budget-v1"),
+  ).budget.transactions.find((t) => t.id === "cafe").amount,
+  30000,
+);
 assert.equal(errors.length, 0);
 await act(async () => root.unmount());
 window.close();
 console.log(
-  "Hydration, navigation, preview/apply/undo, bill payment, savings transfer, calendar, and persistence passed in the DOM test environment.",
+  "Hydration, navigation, comparison, atomic combined decisions, preview/apply/undo, bill payment, savings, transaction corrections, field validation, calendar and persistence passed in the DOM test environment.",
 );

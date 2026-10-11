@@ -1,9 +1,12 @@
 import { PaceProvider } from "@/hooks/use-pace";
 import { AppLayout } from "@/components/app-layout";
+import { AppBoundary } from "@/components/app-boundary";
 export default function Home() {
   return (
-    <PaceProvider>
-      <AppLayout />
-    </PaceProvider>
+    <AppBoundary>
+      <PaceProvider>
+        <AppLayout />
+      </PaceProvider>
+    </AppBoundary>
   );
 }

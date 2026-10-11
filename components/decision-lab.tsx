@@ -23,6 +23,11 @@ export function DecisionLab() {
     open,
     preview,
     apply,
+    supporting,
+    setSupporting,
+    decisions,
+    view,
+    pinScenario,
   } = usePace();
   return (
     <section className="lab-panel" id="decision-lab">
@@ -33,7 +38,9 @@ export function DecisionLab() {
         </div>
         <FlaskConical size={26} strokeWidth={1.5} />
       </div>
-      <p className="lab-intro">A little what-if goes a long way.</p>
+      <p className="lab-intro">
+        A little what-if goes a long way. Includes essentials.
+      </p>
       <form onSubmit={preview}>
         <div className="decision-types">
           {(["purchase", "income", "emergency", "cancel"] as const).map((t) => (
@@ -93,6 +100,10 @@ export function DecisionLab() {
                 <input
                   aria-label="Decision amount in rupees"
                   inputMode="decimal"
+                  aria-describedby={
+                    error && !modal ? "decision-error" : undefined
+                  }
+                  aria-invalid={Boolean(error && !modal)}
                   value={amount}
                   onChange={(e) => {
                     setAmount(e.target.value);
@@ -136,7 +147,7 @@ export function DecisionLab() {
           </>
         )}
         {error && !modal && (
-          <p className="form-error" role="alert">
+          <p id="decision-error" className="form-error" role="alert">
             {error}
           </p>
         )}
@@ -149,6 +160,22 @@ export function DecisionLab() {
       </form>
       {after ? (
         <div className="impact-results" aria-live="polite">
+          {supporting.length > 0 && (
+            <div className="bundle-summary">
+              <b>{decisions.length} decisions together</b>
+              <ul>
+                {decisions.map((d, i) => (
+                  <li key={`${d.type}-${i}`}>
+                    {d.title} ·{" "}
+                    {d.type === "cancel" ? "cancel renewal" : money(d.amount)}
+                  </li>
+                ))}
+              </ul>
+              <button className="text-button" onClick={() => setSupporting([])}>
+                Remove supporting changes
+              </button>
+            </div>
+          )}
           <div className="impact-heading">
             <span>THE RIPPLE EFFECT</span>
             <span className={`badge ${after.risk.toLowerCase()}`}>
@@ -181,6 +208,11 @@ export function DecisionLab() {
               before: money(m.goalAffordable),
               after: money(after.goalAffordable),
             },
+            {
+              label: "Protected buffer",
+              before: money(m.bufferRemaining),
+              after: money(after.bufferRemaining),
+            },
           ].map((r) => (
             <div className="impact-row" key={r.label}>
               <span>{r.label}</span>
@@ -200,9 +232,10 @@ export function DecisionLab() {
             <button
               className="button light"
               onClick={() =>
-                after.risk === "High" &&
-                decision?.type !== "income" &&
-                decision?.type !== "cancel"
+                supporting.some((d) => d.type === "income") ||
+                (after.risk === "High" &&
+                  decision?.type !== "income" &&
+                  decision?.type !== "cancel")
                   ? open({ kind: "confirm" })
                   : apply()
               }
@@ -219,6 +252,11 @@ export function DecisionLab() {
               Discard
             </button>
           </div>
+          {view === "lab" && (
+            <button className="text-button pin-preview" onClick={pinScenario}>
+              Pin for comparison <ArrowUpRight size={14} />
+            </button>
+          )}
         </div>
       ) : (
         <div className="lab-footnote">

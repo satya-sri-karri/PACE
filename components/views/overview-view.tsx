@@ -6,6 +6,7 @@ import { DecisionLab } from "@/components/decision-lab";
 import { BillsPanel } from "@/components/bills-panel";
 import { SavingsGoals } from "@/components/savings-goals";
 import { ActivityPanel } from "@/components/activity-panel";
+import { BudgetPulse } from "@/components/budget-pulse";
 export function OverviewView() {
   const { budget, m, candidate, activeSubscriptions, open, preset, move } =
     usePace();
@@ -164,6 +165,7 @@ export function OverviewView() {
           </small>
         </button>
       </div>
+      <BudgetPulse />
       <div className="middle-grid">
         <Forecast budget={budget} candidate={candidate} />
         <DecisionLab />

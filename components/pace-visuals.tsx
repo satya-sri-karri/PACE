@@ -169,10 +169,15 @@ export function Dialog({
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   useEffect(() => {
+    const trigger =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     const el = ref.current;
     if (el && !el.open) el.showModal();
     return () => {
       if (el?.open) el.close();
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
     };
   }, []);
   return (

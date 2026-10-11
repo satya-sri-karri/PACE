@@ -7,6 +7,7 @@ import {
 import { money } from "@/lib/finance";
 import { usePace } from "@/hooks/use-pace";
 import { ActivityPanel } from "@/components/activity-panel";
+import { SpendingInsights } from "@/components/spending-insights";
 export function ActivityView() {
   const { m } = usePace();
   return (
@@ -28,6 +29,7 @@ export function ActivityView() {
           <PiggyBank />
         </div>
       </div>
+      <SpendingInsights />
       <ActivityPanel full />
       <div className="activity-note">
         <ShieldCheck size={17} />

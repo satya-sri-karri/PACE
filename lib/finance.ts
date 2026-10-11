@@ -255,7 +255,7 @@ export function calculate(b: Budget) {
   const minimum = Math.min(...forecast.map((p) => p.balance));
   const deficitDay = forecast.find((p) => p.balance < 0)?.day;
   const risk: Risk =
-    minimum < 0 || allowance < b.essentials
+    minimum < 0 || free < futureEssentials
       ? "High"
       : minimum < b.reserve + 7 * b.essentials
         ? "Watch"
@@ -263,8 +263,8 @@ export function calculate(b: Budget) {
   const riskReason =
     minimum < 0
       ? `Your plan runs short on Day ${deficitDay}.`
-      : allowance < b.essentials
-        ? `Your daily allowance is below your ${money(b.essentials)} essentials estimate.`
+      : free < futureEssentials
+        ? `Your available spending is ${money(futureEssentials - Math.max(0, free))} below your remaining essentials estimate.`
         : risk === "Watch"
           ? "Bills are covered, but your cash cushion is less than a week of essentials."
           : "Your plan covers essentials, goals, and a week of breathing room.";
@@ -272,7 +272,7 @@ export function calculate(b: Budget) {
   const liquidity = clamp(
     (minimum - b.reserve) / Math.max(7 * b.essentials, 1),
   );
-  const coverage = b.essentials === 0 ? 1 : clamp(allowance / b.essentials);
+  const coverage = futureEssentials === 0 ? 1 : clamp(free / futureEssentials);
   const goalAffordable = Math.max(
     0,
     balance - commitments - futureEssentials - b.reserve,
@@ -307,6 +307,10 @@ export function calculate(b: Budget) {
     },
     goalAffordable,
     goalFunding,
+    flexible: Math.max(0, minimum - b.reserve),
+    recoveryGap: Math.max(0, b.reserve - minimum),
+    bufferRemaining: Math.min(b.reserve, Math.max(0, minimum)),
+    essentialsLeftToday: Math.max(0, b.essentials - todayEssential),
   };
 }
 export function decide(b: Budget, decision: Decision, preview = false): Budget {
@@ -319,7 +323,11 @@ export function decide(b: Budget, decision: Decision, preview = false): Budget {
       throw new Error("Choose an active, unpaid subscription.");
     sub.status = "cancelled";
   } else {
-    if (!Number.isSafeInteger(decision.amount) || decision.amount < 1)
+    if (
+      !Number.isSafeInteger(decision.amount) ||
+      decision.amount < 1 ||
+      decision.amount > 1000000000
+    )
       throw new Error("Enter a positive amount.");
     if (
       !preview &&
@@ -499,12 +507,39 @@ export function validateBudget(value: unknown): value is Budget {
     b.transactions.some(
       (t) =>
         t.linkedId &&
-        !b.commitments.some(
-          (c) =>
-            c.id === t.linkedId && c.status === "paid" && c.amount === t.amount,
-        ),
+        (t.type !== "expense" ||
+          !str(t.linkedId) ||
+          !b.commitments.some(
+            (c) =>
+              c.id === t.linkedId &&
+              c.status === "paid" &&
+              c.amount === t.amount,
+          )),
+    )
+  )
+    return false;
+  if (
+    b.transactions.some(
+      (t) => t.goalId !== undefined && (t.type !== "saving" || !str(t.goalId)),
     )
   )
     return false;
   return calculate(b).balance >= 0;
+}
+
+/** A bundle is atomic: incoming money is available before any included expense. */
+export function simulate(
+  budget: Budget,
+  decisions: readonly Decision[],
+  preview = true,
+): Budget {
+  if (!decisions.length || decisions.length > 4)
+    throw new Error("Compare up to four decisions together.");
+  const ordered = [...decisions].sort(
+    (a, b) => Number(b.type === "income") - Number(a.type === "income"),
+  );
+  return ordered.reduce(
+    (next, decision) => decide(next, decision, preview),
+    budget,
+  );
 }

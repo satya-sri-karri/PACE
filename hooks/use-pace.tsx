@@ -10,11 +10,13 @@ import {
 } from "react";
 import {
   calculate,
+  createSeed,
   decide,
   newId,
   parseMoney,
   sanitizeText,
   savedFor,
+  simulate,
   transferSaving,
   validateBudget,
   type Budget,
@@ -22,6 +24,7 @@ import {
   type Decision,
   type Goal,
 } from "@/lib/finance";
+import type { SavedScenario } from "@/lib/insights";
 import {
   decodeBackup,
   dismissStorageWarning,
@@ -38,18 +41,31 @@ export function usePaceController() {
     getInitialSnapshot,
   );
   const loaded = true;
-  const setBudget = (next: Budget) =>
-    updatePlan((current) => ({ ...current, budget: next }));
-  const setHistory = (next: Budget[] | ((current: Budget[]) => Budget[])) =>
-    updatePlan((current) => ({
-      ...current,
-      history: typeof next === "function" ? next(current.history) : next,
+  function resetPlan(fresh = false) {
+    updatePlan(() => ({
+      budget: createSeed(fresh),
+      history: [],
+      storageWarning: "",
     }));
+    setScenarios([]);
+    setSupporting([]);
+    setDecision(null);
+    setModal(null);
+    setError("");
+    setNotice(
+      fresh
+        ? "Fresh month. ₹10,000 and 30 days ahead."
+        : "Day 11 demo restored. Ready to explore.",
+    );
+  }
   const setStorageWarning = dismissStorageWarning;
   const [view, setView] = useState<View>("overview"),
     [modal, setModal] = useState<Modal>(null),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const [supporting, setSupporting] = useState<Decision[]>([]);
+  const [scenarios, setScenarios] = useState<SavedScenario[]>([]);
+  const [errorField, setErrorField] = useState("");
   const [type, setType] = useState<Decision["type"]>("purchase"),
     [amount, setAmount] = useState("1800"),
     [decisionTitle, setDecisionTitle] = useState("Weekend shopping"),
@@ -59,14 +75,18 @@ export function usePaceController() {
     [filter, setFilter] = useState("all"),
     lock = useRef(false);
   const m = useMemo(() => calculate(budget), [budget]);
+  const decisions = useMemo(
+    () => (decision ? [...supporting, decision] : []),
+    [supporting, decision],
+  );
   const candidate = useMemo(() => {
     if (!decision) return null;
     try {
-      return decide(budget, decision, true);
+      return simulate(budget, decisions);
     } catch {
       return null;
     }
-  }, [budget, decision]);
+  }, [budget, decision, decisions]);
   const after = useMemo(
       () => (candidate ? calculate(candidate) : null),
       [candidate],
@@ -96,6 +116,8 @@ export function usePaceController() {
       budget: next,
     }));
     setDecision(null);
+    setSupporting([]);
+    setScenarios([]);
     setNotice(message);
     setError("");
     setModal(null);
@@ -108,6 +130,10 @@ export function usePaceController() {
       fn();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Please check your entry.");
+      setErrorField(e instanceof FieldError ? e.field : "");
+      requestAnimationFrame(() =>
+        document.getElementById("form-error")?.focus(),
+      );
     }
   }
   function preview(e?: FormEvent) {
@@ -123,6 +149,7 @@ export function usePaceController() {
       };
       decide(budget, d, true);
       setDecision(d);
+      setSupporting([]);
       setError("");
       setView("lab");
       window.scrollTo({
@@ -137,7 +164,7 @@ export function usePaceController() {
     if (!decision) return;
     safe(() =>
       commit(
-        decide(budget, decision),
+        simulate(budget, decisions, false),
         decision.type === "cancel"
           ? "Renewal cancelled. A little more breathing room."
           : "Decision recorded. Your whole plan is up to date.",
@@ -163,6 +190,7 @@ export function usePaceController() {
       };
       decide(budget, d, true);
       setDecision(d);
+      setSupporting([]);
       setError("");
     });
   }
@@ -179,6 +207,47 @@ export function usePaceController() {
         : "smooth",
     });
   }
+  function addSupport(d: Decision) {
+    if (!decision) return;
+    safe(() => {
+      simulate(budget, [...supporting, d, decision]);
+      setSupporting((current) => [...current, d]);
+      setError("");
+    });
+  }
+  function pinScenario() {
+    if (!decision || !candidate) return;
+    const signature = JSON.stringify(decisions);
+    if (scenarios.some((s) => JSON.stringify(s.decisions) === signature)) {
+      setNotice("This option is already on your comparison board.");
+      return;
+    }
+    setScenarios((current) =>
+      [
+        ...current,
+        {
+          id: newId(),
+          title: decision.title || "My option",
+          decisions: structuredClone(decisions),
+        },
+      ].slice(-3),
+    );
+    setNotice("Option pinned. Try another amount and compare the trade-offs.");
+  }
+  function loadScenario(scenario: SavedScenario) {
+    const d = scenario.decisions.at(-1);
+    if (!d) return;
+    safe(() => {
+      simulate(budget, scenario.decisions);
+      setDecision(d);
+      setSupporting(scenario.decisions.slice(0, -1));
+      setType(d.type);
+      setAmount(String(d.amount / 100));
+      setDecisionTitle(d.title);
+      setSubscriptionId(d.subscriptionId ?? "");
+      setError("");
+    });
+  }
   function undo() {
     if (!history.length) return;
     updatePlan((current) => ({
@@ -187,42 +256,80 @@ export function usePaceController() {
       history: current.history.slice(0, -1),
     }));
     setDecision(null);
+    setSupporting([]);
+    setScenarios([]);
     setNotice("Last change undone. Your previous plan is restored.");
   }
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const data = new FormData(e.currentTarget),
       f = (key: string) => String(data.get(key) ?? "");
+    const cashField = (key: string, zero = false) => {
+      try {
+        return parseMoney(f(key), zero);
+      } catch (error) {
+        throw new FieldError(
+          key,
+          error instanceof Error ? error.message : "Enter a valid amount.",
+        );
+      }
+    };
+    const titleField = () => {
+      try {
+        return sanitizeText(f("title"));
+      } catch {
+        throw new FieldError(
+          "title",
+          "Use a description between 1 and 80 characters.",
+        );
+      }
+    };
     safe(() => {
       const next = structuredClone(budget);
       if (modal?.kind === "income" || modal?.kind === "expense") {
-        const cash = parseMoney(f("amount")),
+        const cash = cashField("amount"),
           income = modal.kind === "income";
-        if (!income && cash > m.balance)
-          throw Error("Your wallet cannot cover this expense.");
-        next.transactions.push({
-          id: newId(),
-          day: budget.day,
-          title: sanitizeText(f("title")),
+        const existing = modal.item;
+        if (existing && (existing.linkedId || existing.type === "saving"))
+          throw Error("Use the linked bill or savings action for this entry.");
+        if (!income && cash > m.balance + (existing?.amount ?? 0))
+          throw new FieldError(
+            "amount",
+            "Your wallet cannot cover this expense.",
+          );
+        const entry = {
+          id: existing?.id ?? newId(),
+          day: existing?.day ?? budget.day,
+          title: titleField(),
           amount: cash,
-          type: income ? "income" : "expense",
+          type: income ? ("income" as const) : ("expense" as const),
           category: income ? "Income" : f("category"),
           essential: !income && data.get("essential") === "on",
-        });
+        };
+        if (existing)
+          next.transactions = next.transactions.map((t) =>
+            t.id === existing.id ? entry : t,
+          );
+        else next.transactions.push(entry);
         commit(
           next,
-          income
-            ? "Income received. Your plan just got lighter."
-            : "Expense recorded. Every number is up to date.",
+          existing
+            ? "Entry corrected. Your balance and forecast are updated."
+            : income
+              ? "Income received. Your plan just got lighter."
+              : "Expense recorded. Every number is up to date.",
         );
       } else if (modal?.kind === "commitment") {
         const dueDay = Number(f("dueDay"));
         if (!Number.isInteger(dueDay) || dueDay < budget.day || dueDay > 30)
-          throw Error(`Choose a day between ${budget.day} and 30.`);
+          throw new FieldError(
+            "dueDay",
+            `Choose a day between ${budget.day} and 30.`,
+          );
         const c: Commitment = {
             id: modal.item?.id || newId(),
-            title: sanitizeText(f("title")),
-            amount: parseMoney(f("amount")),
+            title: titleField(),
+            amount: cashField("amount"),
             dueDay,
             kind: f("kind") as Commitment["kind"],
             status: "pending",
@@ -233,20 +340,27 @@ export function usePaceController() {
         commit(next, "Commitment updated. Your forecast now includes it.");
       } else if (modal?.kind === "goal") {
         const id = modal.item?.id || newId(),
-          target = parseMoney(f("target")),
-          planned = parseMoney(f("planned"), true),
+          target = cashField("target"),
+          planned = cashField("planned", true),
           dueDay = Number(f("dueDay"));
         if (!Number.isInteger(dueDay) || dueDay < budget.day || dueDay > 30)
-          throw Error(`Choose a day between ${budget.day} and 30.`);
+          throw new FieldError(
+            "dueDay",
+            `Choose a day between ${budget.day} and 30.`,
+          );
         if (target < savedFor(budget, id))
-          throw Error("The target cannot be below actual savings.");
+          throw new FieldError(
+            "target",
+            "The target cannot be below actual savings.",
+          );
         if (planned > target - savedFor(budget, id))
-          throw Error(
+          throw new FieldError(
+            "planned",
             "Your planned contribution exceeds the amount left to save.",
           );
         const g: Goal = {
             id,
-            title: sanitizeText(f("title")),
+            title: titleField(),
             target,
             planned,
             dueDay,
@@ -257,16 +371,17 @@ export function usePaceController() {
         commit(next, "Goal updated. Your plan makes room for it.");
       } else if (modal?.kind === "transfer")
         commit(
-          transferSaving(budget, modal.item.id, parseMoney(f("amount"))),
+          transferSaving(budget, modal.item.id, cashField("amount")),
           "Money moved to savings. Your goal is getting closer.",
         );
       else if (modal?.kind === "settings") {
-        next.essentials = parseMoney(f("essentials"), true);
-        next.reserve = parseMoney(f("reserve"), true);
+        next.essentials = cashField("essentials", true);
+        next.reserve = cashField("reserve", true);
         next.day = Number(f("day"));
         const latest = Math.max(1, ...budget.transactions.map((t) => t.day));
         if (!Number.isInteger(next.day) || next.day < latest || next.day > 30)
-          throw Error(
+          throw new FieldError(
+            "day",
             `Choose a day from ${latest} to 30. Posted entries keep their dates.`,
           );
         commit(next, "Plan assumptions updated. Forecasts are recalculated.");
@@ -296,12 +411,40 @@ export function usePaceController() {
       setError(e instanceof Error ? e.message : "Could not restore that plan.");
     }
   }
+  function removeEntry() {
+    if ((modal?.kind !== "expense" && modal?.kind !== "income") || !modal.item)
+      return;
+    const item = modal.item;
+    safe(() => {
+      if (item.linkedId || item.type === "saving")
+        throw Error("Use the linked bill or savings action for this entry.");
+      commit(
+        {
+          ...budget,
+          transactions: budget.transactions.filter((t) => t.id !== item.id),
+        },
+        "Entry removed. Undo can restore it.",
+      );
+    });
+  }
 
   return {
     budget,
-    setBudget,
+    supporting,
+    setSupporting,
+    decisions,
+    scenarios,
+    setScenarios,
+    addSupport,
+    pinScenario,
+    loadScenario,
+    fieldProps: (name: string) => ({
+      "aria-invalid": Boolean(error && errorField === name),
+      "aria-describedby":
+        error && errorField === name ? "form-error" : undefined,
+    }),
+    resetPlan,
     history,
-    setHistory,
     loaded,
     storageWarning,
     setStorageWarning,
@@ -343,7 +486,16 @@ export function usePaceController() {
     submit,
     exportPlan,
     importPlan,
+    removeEntry,
   };
+}
+class FieldError extends Error {
+  constructor(
+    public field: string,
+    message: string,
+  ) {
+    super(message);
+  }
 }
 const PaceContext = createContext<ReturnType<typeof usePaceController> | null>(
   null,

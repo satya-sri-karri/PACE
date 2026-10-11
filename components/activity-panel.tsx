@@ -7,6 +7,7 @@ import {
   Bus,
   Search,
   PiggyBank,
+  Pencil,
 } from "lucide-react";
 import { money } from "@/lib/finance";
 import { usePace } from "@/hooks/use-pace";
@@ -96,7 +97,23 @@ export function ActivityPanel({ full = false }: { full?: boolean }) {
                 )}
               </span>
               <div className="activity-title">
-                <b>{t.title}</b>
+                {full && !t.linkedId && t.type !== "saving" ? (
+                  <button
+                    className="edit-entry"
+                    onClick={() =>
+                      open({
+                        kind: t.type === "income" ? "income" : "expense",
+                        item: t,
+                      })
+                    }
+                    aria-label={`Edit ${t.title}`}
+                  >
+                    <b>{t.title}</b>
+                    <Pencil size={12} />
+                  </button>
+                ) : (
+                  <b>{t.title}</b>
+                )}
                 <small>
                   {t.category}
                   {t.essential ? " · Essential" : ""}

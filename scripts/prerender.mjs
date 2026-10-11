@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { render } from "../work/ssr/prerender.js";
-const path = new URL("../dist/index.html", import.meta.url);
+const path = new URL("../work/client/index.html", import.meta.url);
 const shell = await readFile(path, "utf8");
 await writeFile(
   path,

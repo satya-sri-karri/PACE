@@ -1,20 +1,20 @@
 {
   "name": "pace-finance",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
     "dev": "vite --config vite.app.config.ts",
-    "build": "tsc --noEmit && vite build --config vite.app.config.ts && vite build --config vite.app.config.ts --ssr src/prerender.tsx --outDir work/ssr && node scripts/prerender.mjs",
+    "build": "tsc --noEmit && vite build --config vite.app.config.ts && vite build --config vite.app.config.ts --ssr src/prerender.tsx --outDir work/ssr && node scripts/prerender.mjs && node scripts/build-worker.mjs",
     "start": "vite preview --config vite.app.config.ts",
     "lint": "eslint . --max-warnings 0",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview --config vite.app.config.ts",
     "format:check": "prettier --check app components hooks lib src tests scripts *.ts *.json *.mjs index.html",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && node scripts/verify-build.mjs && node scripts/verify-interactions.mjs",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && node scripts/verify-build.mjs && node scripts/verify-interactions.mjs && node scripts/verify-worker.mjs",
     "audit": "pnpm audit --audit-level low"
   },
   "dependencies": {

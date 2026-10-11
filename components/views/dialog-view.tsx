@@ -6,27 +6,27 @@ import {
   Download,
   AlertTriangle,
 } from "lucide-react";
-import { createSeed, money, savedFor } from "@/lib/finance";
+import { money, savedFor } from "@/lib/finance";
 import { Star, GoalArt, Dialog } from "@/components/pace-visuals";
 import { usePace } from "@/hooks/use-pace";
 
 export function AppDialog() {
   const {
     budget,
-    setBudget,
-    setHistory,
+    resetPlan,
     modal,
     setModal,
     error,
     setError,
-    setNotice,
-    setDecision,
+    fieldProps,
+    supporting,
     m,
     after,
     apply,
     submit,
     exportPlan,
     importPlan,
+    removeEntry,
   } = usePace();
   if (!modal) return null;
   return (
@@ -34,7 +34,9 @@ export function AppDialog() {
       title={
         modal.kind === "day"
           ? `Day ${modal.day}, in focus.`
-          : TITLES[modal.kind]
+          : (modal.kind === "expense" || modal.kind === "income") && modal.item
+            ? "Make the numbers right."
+            : TITLES[modal.kind]
       }
       onClose={() => {
         setModal(null);
@@ -61,6 +63,8 @@ export function AppDialog() {
                 Description
                 <input
                   name="title"
+                  {...fieldProps("title")}
+                  defaultValue={modal.item?.title}
                   required
                   maxLength={80}
                   placeholder={
@@ -74,6 +78,10 @@ export function AppDialog() {
                 Amount (₹)
                 <input
                   name="amount"
+                  {...fieldProps("amount")}
+                  defaultValue={
+                    modal.item ? modal.item.amount / 100 : undefined
+                  }
                   required
                   inputMode="decimal"
                   placeholder="0.00"
@@ -84,7 +92,7 @@ export function AppDialog() {
                 <>
                   <label>
                     Category
-                    <select name="category">
+                    <select name="category" defaultValue={modal.item?.category}>
                       <option>Food</option>
                       <option>Transport</option>
                       <option>Shopping</option>
@@ -94,7 +102,11 @@ export function AppDialog() {
                     </select>
                   </label>
                   <label className="checkbox-label">
-                    <input type="checkbox" name="essential" />
+                    <input
+                      type="checkbox"
+                      name="essential"
+                      defaultChecked={modal.item?.essential}
+                    />
                     Part of today’s expected essentials
                   </label>
                   <p className="field-help">
@@ -111,6 +123,7 @@ export function AppDialog() {
                 Name
                 <input
                   name="title"
+                  {...fieldProps("title")}
                   required
                   maxLength={80}
                   defaultValue={modal.item?.title}
@@ -122,6 +135,7 @@ export function AppDialog() {
                   Amount (₹)
                   <input
                     name="amount"
+                    {...fieldProps("amount")}
                     required
                     inputMode="decimal"
                     defaultValue={
@@ -134,6 +148,7 @@ export function AppDialog() {
                   Due day
                   <input
                     name="dueDay"
+                    {...fieldProps("dueDay")}
                     type="number"
                     min={budget.day}
                     max="30"
@@ -164,6 +179,7 @@ export function AppDialog() {
                 Goal name
                 <input
                   name="title"
+                  {...fieldProps("title")}
                   required
                   maxLength={80}
                   defaultValue={modal.item?.title}
@@ -175,6 +191,7 @@ export function AppDialog() {
                   Target (₹)
                   <input
                     name="target"
+                    {...fieldProps("target")}
                     required
                     inputMode="decimal"
                     defaultValue={
@@ -187,6 +204,7 @@ export function AppDialog() {
                   Planned this month (₹)
                   <input
                     name="planned"
+                    {...fieldProps("planned")}
                     required
                     inputMode="decimal"
                     defaultValue={
@@ -202,6 +220,7 @@ export function AppDialog() {
                 Contribution day
                 <input
                   name="dueDay"
+                  {...fieldProps("dueDay")}
                   type="number"
                   min={budget.day}
                   max="30"
@@ -231,6 +250,7 @@ export function AppDialog() {
                 Move to savings (₹)
                 <input
                   name="amount"
+                  {...fieldProps("amount")}
                   inputMode="decimal"
                   required
                   defaultValue={
@@ -259,6 +279,7 @@ export function AppDialog() {
                 <input
                   type="number"
                   name="day"
+                  {...fieldProps("day")}
                   required
                   min={Math.max(...budget.transactions.map((t) => t.day), 1)}
                   max="30"
@@ -270,6 +291,7 @@ export function AppDialog() {
                   Daily essentials (₹)
                   <input
                     name="essentials"
+                    {...fieldProps("essentials")}
                     inputMode="decimal"
                     required
                     defaultValue={budget.essentials / 100}
@@ -279,6 +301,7 @@ export function AppDialog() {
                   Safety buffer (₹)
                   <input
                     name="reserve"
+                    {...fieldProps("reserve")}
                     inputMode="decimal"
                     required
                     defaultValue={budget.reserve / 100}
@@ -310,11 +333,26 @@ export function AppDialog() {
             </>
           )}
           {error && (
-            <p className="form-error" role="alert">
+            <p
+              id="form-error"
+              className="form-error"
+              role="alert"
+              tabIndex={-1}
+            >
               {error}
             </p>
           )}
           <div className="modal-actions">
+            {(modal.kind === "income" || modal.kind === "expense") &&
+              modal.item && (
+                <button
+                  type="button"
+                  className="text-button danger-text"
+                  onClick={removeEntry}
+                >
+                  Remove entry
+                </button>
+              )}
             <button
               type="button"
               className="button outline"
@@ -383,8 +421,8 @@ export function AppDialog() {
           ))}
           <p className="muted-note">
             A planning indicator, not a credit score. High risk means negative
-            projected cash or allowance below essentials. Watch means less than
-            a week of cushion.
+            projected cash or insufficient money for remaining essentials and
+            the buffer. Watch means less than a week of cushion.
           </p>
         </div>
       )}
@@ -397,11 +435,7 @@ export function AppDialog() {
           <div className="reset-options">
             <button
               onClick={() => {
-                setBudget(createSeed(true));
-                setHistory([]);
-                setDecision(null);
-                setModal(null);
-                setNotice("Fresh month. ₹10,000 and 30 days ahead.");
+                resetPlan(true);
               }}
             >
               <span className="item-icon lime-bg">
@@ -415,11 +449,7 @@ export function AppDialog() {
             </button>
             <button
               onClick={() => {
-                setBudget(createSeed());
-                setHistory([]);
-                setDecision(null);
-                setModal(null);
-                setNotice("Day 11 demo restored. Ready to explore.");
+                resetPlan();
               }}
             >
               <span className="item-icon peach">
@@ -439,7 +469,11 @@ export function AppDialog() {
           <div className="risk-callout">
             <AlertTriangle />
             <div>
-              <strong>This puts pressure on your plan.</strong>
+              <strong>
+                {supporting.some((d) => d.type === "income")
+                  ? "Confirm the whole combination."
+                  : "This puts pressure on your plan."}
+              </strong>
               <p>{after.riskReason}</p>
             </div>
           </div>
@@ -448,8 +482,20 @@ export function AppDialog() {
             month-end forecast becomes <b>{money(after.monthEnd)}</b>. This
             records a decision; it does not make a real payment.
           </p>
+          {modal.kind === "confirm" &&
+            supporting.some((d) => d.type === "income") && (
+              <p className="income-confirmation">
+                This combination records extra income. Continue only if that
+                money has actually arrived. Otherwise, keep it as a preview.
+              </p>
+            )}
           {error && (
-            <p className="form-error" role="alert">
+            <p
+              id="form-error"
+              className="form-error"
+              role="alert"
+              tabIndex={-1}
+            >
               {error}
             </p>
           )}

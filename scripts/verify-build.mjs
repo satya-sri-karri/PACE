@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
-import { gzipSync } from "node:zlib";
+import { gzipSync, brotliCompressSync, constants } from "node:zlib";
 import { JSDOM } from "jsdom";
 import axe from "axe-core";
 
-const dist = new URL("../dist/", import.meta.url);
+const dist = new URL("../work/client/", import.meta.url);
 const html = await readFile(new URL("index.html", dist), "utf8");
 const dom = new JSDOM(html, {
   runScripts: "outside-only",
@@ -50,14 +50,25 @@ let total = 0;
 for (const file of assets.filter((f) => /\.(js|css)$/.test(f))) {
   const contents = await readFile(new URL(`assets/${file}`, dist));
   const gzip = gzipSync(contents).length;
-  total += gzip;
+  const brotli = brotliCompressSync(contents, {
+    params: { [constants.BROTLI_PARAM_QUALITY]: 11 },
+  }).length;
+  total += brotli;
   assert.ok(
     gzip < (file.endsWith(".css") ? 13_000 : 80_000),
     `${file} exceeds compressed asset budget`,
   );
-  console.log(`${file}: ${(gzip / 1000).toFixed(1)} kB gzip`);
+  console.log(
+    `${file}: ${(brotli / 1000).toFixed(1)} kB Brotli, ${(gzip / 1000).toFixed(1)} kB gzip`,
+  );
 }
-assert.ok(total < 100_000, "Total JS and CSS exceeds 100 kB gzip");
+assert.ok(
+  total < 90_000,
+  "Total JS and CSS exceeds 90 kB Brotli (the production transfer encoding)",
+);
+console.log(
+  `Total production transfer: ${(total / 1000).toFixed(1)} kB Brotli.`,
+);
 console.log(
   `Prerendered dashboard verified; ${result.passes.length} static accessibility rules passed. Layout-dependent contrast and Web Vitals require a real browser.`,
 );

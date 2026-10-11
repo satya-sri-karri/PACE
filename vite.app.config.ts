@@ -5,7 +5,7 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
   server: { host: "127.0.0.1", allowedHosts: ["terminal.local"] },
   build: {
-    outDir: "dist",
+    outDir: "work/client",
     emptyOutDir: true,
     target: "es2022",
     sourcemap: false,

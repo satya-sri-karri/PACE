@@ -14,6 +14,10 @@ The interface uses warm ivory, ink, burnt orange, flat peach and sage surfaces, 
 - Savings goals with actual savings separated from planned contributions
 - A dated cash-flow chart and interactive 30-day calendar
 - A What-if lab for purchases, emergencies, extra income, and subscription cancellation
+- Up to four decisions in one atomic preview, with three options pinned for side-by-side comparison
+- Exact buffer-recovery gaps and actionable income, renewal and lower-cost alternatives
+- Editable manual transactions with validated correction, removal and undo
+- Category spending breakdown and a separate observed-spending forecast
 - Before/after balance, allowance, forecast, savings affordability, risk, and planning health
 - Apply, discard, and persistent undo history
 - Validated local storage, JSON backup/restore, and fresh-month/demo reset
@@ -29,7 +33,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open the local URL printed by Vite. The application runs entirely in the browser; there is no backend configuration.
+Open the local URL printed by Vite. Financial calculations and personal data stay in the browser. A small dependency-free HTTP worker serves the built files and security headers; no backend account or API key is needed.
 
 ## Validate and build
 
@@ -39,7 +43,7 @@ pnpm audit --audit-level low
 pnpm preview
 ```
 
-The production output is **dist/**. Vercel configuration is included; other static hosts can use `pnpm build` and publish `dist`. The app uses internal views rather than URL-based routes, so no SPA route rewrites are required.
+The deployment output is **dist/server/index.js**, a self-contained Worker ES module with an exact allowlist of embedded client assets. It applies security headers, Brotli/gzip negotiation, MIME types, ETags and immutable caching to versioned assets. The standalone static build is **work/client/**; Vercel configuration points there. The app uses internal views, so no SPA route rewrites are required.
 
 ## Financial model
 
@@ -59,6 +63,8 @@ Money is stored as integer paise. The starting demo is Day 11:
 | Month-end wallet forecast       |     ₹900 |
 
 Daily allowance = max(0, wallet − unpaid commitments − planned savings − buffer) / remaining days.
+
+Room for a one-off extra = max(0, minimum projected balance − buffer). Recovery gap = max(0, buffer − minimum projected balance). Risk and essentials coverage use **remaining** essentials, so a day whose essentials are already fully recorded is not charged again. The separate spending-trend forecast uses observed everyday spending through the current day, excluding linked bill payments; it does not replace the configured essentials forecast.
 
 The forecast deducts each scheduled payment on its due day and estimates future essential spending. Essentials already posted today reduce today's remaining essentials forecast. An internal savings transfer is not consumption spending. Paying an already-reserved bill or transferring already-reserved savings does not charge the allowance twice.
 
@@ -85,15 +91,15 @@ The active project uses only React, React DOM, and Lucide at runtime. There is n
 
 ## Verification and demo
 
-Version 0.2.0 passes ESLint with zero warnings/errors, strict TypeScript (including unchecked-index protection), eight financial/security test groups, production builds, hydration, and core DOM interaction tests. The complete dashboard is prerendered; secondary views and dialogs load on demand. Combined compressed JavaScript and CSS are under 100 kB according to the build verification script.
+Version 0.3.0 includes checks for zero-warning ESLint, strict TypeScript, 14 financial/security/HTTP test groups, production builds, hydration, and core DOM interactions. The complete dashboard is prerendered; secondary views and dialogs load on demand. Browser assets are precompressed during the build. A size check caps total JavaScript and CSS at 90 kB with Brotli; gzip and uncompressed fallbacks are also available. The older 100 kB gzip budget was replaced with a check of the encoding actually served to supporting browsers.
 
-Static axe checks cover the overview, decision lab, activity, plan, confirmation dialog, and calendar dialog. They report zero violations for supported rules. Colour contrast is excluded from axe in JSDOM because it requires layout; source colour checks informed contrast improvements. Native dialog focus trapping, viewport appearance, FCP, and CLS still require a real-browser audit. No Lighthouse or FAIE score is claimed by the local checks.
+Static axe checks cover the overview, decision lab, comparison board, activity, plan, confirmation dialog, invalid-input dialog, and calendar dialog. They report zero violations for supported rules. Colour contrast is excluded from axe in JSDOM because it requires layout; source colour checks informed contrast improvements. Native dialog focus trapping, viewport appearance, FCP, and CLS still require a real-browser audit. No Lighthouse or FAIE score is claimed by the local checks.
 
 The full lockfile audit reported zero known vulnerabilities at the time of this update. Patched transitive packages are pinned in `pnpm-workspace.yaml`; rerun the audit because advisories can change.
 
-A same-origin Content Security Policy blocks external scripts, plugins, and unexpected resource origins. React escapes descriptions as text, monetary input is parsed to integer paise, and import size/record-count limits bound backup processing. Response-header configuration is included for hosts that support it; the HTML also includes a CSP and referrer policy. Security headers controlled by the hosting platform must be verified on the deployed response.
+A same-origin Content Security Policy blocks external scripts, plugins, and unexpected resource origins. React escapes descriptions as text, monetary input is parsed to integer paise, and import size/record-count limits bound backup processing. The Worker applies CSP (including frame ancestors), nosniff, referrer policy, permissions policy, HSTS and cross-origin policies on HTTP responses. The HTML also includes a CSP and referrer policy. Static hosting alternatives must honor the included header configuration.
 
-Suggested demo: open the Day 11 baseline, preview the ₹1,800 purchase, inspect its interconnected consequences, discard it, preview extra income or a cancelled renewal, then apply and inspect Activity. Refresh to demonstrate persistence. Undo restores the previous plan.
+Suggested demo: open the Day 11 baseline, preview the ₹1,800 purchase and pin it. The buffer-recovery gap is ₹1,400; explore that extra-income combination and pin it as a second option. Compare the resulting allowance, forecast, goal affordability, risk and health. Apply only income actually received, inspect Activity, then undo the entire combination. Explore category spending and correct a manual entry. Refresh to demonstrate persistence.
 
 Data stays in the current browser. This app does not connect to a bank, move real money, or sync accounts. Export a backup to keep a copy of a plan.
 
