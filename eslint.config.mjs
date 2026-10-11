@@ -1,28 +1,36 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
-
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  // Override default ignores of eslint-config-next.
-  globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-  ]),
+import js from "@eslint/js";
+import tseslint from "typescript-eslint";
+import react from "eslint-plugin-react";
+import reactHooks from "eslint-plugin-react-hooks";
+import jsxA11y from "eslint-plugin-jsx-a11y";
+import globals from "globals";
+export default [
   {
-    files: ["components/ui/**/*.{ts,tsx}", "hooks/use-mobile.ts"],
+    ignores: [
+      "dist/**",
+      ".next/**",
+      "work/**",
+      ".sites-runtime/**",
+      ".agents/**",
+      ".codex/**",
+      "node_modules/**",
+    ],
+  },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  { languageOptions: { globals: { ...globals.browser, ...globals.node } } },
+  {
+    files: ["**/*.{ts,tsx}"],
+    plugins: { react, "react-hooks": reactHooks, "jsx-a11y": jsxA11y },
+    settings: { react: { version: "19.2" } },
     rules: {
-      // These files are vendored verbatim from shadcn@4.17.0. Keep the
-      // registry source intact while applying the stricter rules to Site code.
-      "@typescript-eslint/no-unused-vars": "off",
-      "react-hooks/purity": "off",
-      "react-hooks/set-state-in-effect": "off",
+      ...reactHooks.configs.recommended.rules,
+      ...jsxA11y.configs.recommended.rules,
+      "jsx-a11y/no-noninteractive-tabindex": ["error", { roles: ["region"] }],
+      "react/jsx-key": "error",
+      "react/no-danger": "error",
+      "react/no-unknown-property": "error",
+      "@typescript-eslint/no-explicit-any": "error",
     },
   },
-]);
-
-export default eslintConfig;
+];

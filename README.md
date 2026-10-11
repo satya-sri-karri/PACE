@@ -34,9 +34,8 @@ Open the local URL printed by Vite. The application runs entirely in the browser
 ## Validate and build
 
 ```sh
-pnpm test
-pnpm typecheck
-pnpm build
+pnpm check
+pnpm audit --audit-level low
 pnpm preview
 ```
 
@@ -46,18 +45,18 @@ The production output is **dist/**. Vercel configuration is included; other stat
 
 Money is stored as integer paise. The starting demo is Day 11:
 
-| Item | Value |
-|---|---:|
-| Received income | ₹10,000 |
-| Recorded spending | ₹2,600 |
-| Wallet | ₹7,400 |
-| Unpaid bills and renewals | ₹2,200 |
-| Planned savings | ₹1,500 |
-| Emergency buffer | ₹500 |
-| Remaining days, including today | 20 |
-| Forecast essentials | ₹140/day |
-| Daily allowance | ₹160 |
-| Month-end wallet forecast | ₹900 |
+| Item                            |    Value |
+| ------------------------------- | -------: |
+| Received income                 |  ₹10,000 |
+| Recorded spending               |   ₹2,600 |
+| Wallet                          |   ₹7,400 |
+| Unpaid bills and renewals       |   ₹2,200 |
+| Planned savings                 |   ₹1,500 |
+| Emergency buffer                |     ₹500 |
+| Remaining days, including today |       20 |
+| Forecast essentials             | ₹140/day |
+| Daily allowance                 |     ₹160 |
+| Month-end wallet forecast       |     ₹900 |
 
 Daily allowance = max(0, wallet − unpaid commitments − planned savings − buffer) / remaining days.
 
@@ -71,19 +70,28 @@ Planning health is a transparent product indicator: 50 points for liquidity, 30 
 
 ## Project structure
 
-- `src/main.tsx`: React entry point
-- `app/page.tsx`: dashboard, interactions, and plan state
-- `app/globals.css`: custom visual system and responsive styles
-- `components/pace-visuals.tsx`: original SVG art, dialogs, and cash-flow visualization
-- `lib/finance.ts`: pure financial calculations, validated monetary parsing, and decisions
-- `tests/finance.test.mjs`: numerical cases and financial invariants
-- `vite.app.config.ts`: frontend build configuration
+- `app/page.tsx`: application composition
+- `components/`: focused dashboard panels and accessible visuals
+- `components/views/`: separate overview, lab, activity, plan, and dialog views
+- `hooks/use-pace.tsx`: typed actions and interaction state
+- `lib/plan-store.ts`: validated local persistence and subscription-based state
+- `lib/finance.ts`: pure financial calculations and bounded input validation
+- `src/prerender.tsx`: initial dashboard HTML for first paint
+- `scripts/`: prerendering, build budgets, static accessibility, and DOM interaction verification
+- `tests/`: numerical invariants and invalid-data cases
+- `.github/workflows/quality.yml`: repeatable lint, type, test, build, and dependency checks
 
-The repository also retains its hosting scaffold. The active app is the static React/Vite entry point; no Worker or database is required.
+The active project uses only React, React DOM, and Lucide at runtime. There is no unused Next.js server, database, or component scaffold.
 
 ## Verification and demo
 
-Automated financial tests, TypeScript checking, production builds, and the initial React-rendered financial values were checked during implementation. Interactive browser and viewport testing still need to be completed at the live URL.
+Version 0.2.0 passes ESLint with zero warnings/errors, strict TypeScript (including unchecked-index protection), eight financial/security test groups, production builds, hydration, and core DOM interaction tests. The complete dashboard is prerendered; secondary views and dialogs load on demand. Combined compressed JavaScript and CSS are under 100 kB according to the build verification script.
+
+Static axe checks cover the overview, decision lab, activity, plan, confirmation dialog, and calendar dialog. They report zero violations for supported rules. Colour contrast is excluded from axe in JSDOM because it requires layout; source colour checks informed contrast improvements. Native dialog focus trapping, viewport appearance, FCP, and CLS still require a real-browser audit. No Lighthouse or FAIE score is claimed by the local checks.
+
+The full lockfile audit reported zero known vulnerabilities at the time of this update. Patched transitive packages are pinned in `pnpm-workspace.yaml`; rerun the audit because advisories can change.
+
+A same-origin Content Security Policy blocks external scripts, plugins, and unexpected resource origins. React escapes descriptions as text, monetary input is parsed to integer paise, and import size/record-count limits bound backup processing. Response-header configuration is included for hosts that support it; the HTML also includes a CSP and referrer policy. Security headers controlled by the hosting platform must be verified on the deployed response.
 
 Suggested demo: open the Day 11 baseline, preview the ₹1,800 purchase, inspect its interconnected consequences, discard it, preview extra income or a cancelled renewal, then apply and inspect Activity. Refresh to demonstrate persistence. Undo restores the previous plan.
 
