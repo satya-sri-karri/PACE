@@ -47,7 +47,7 @@ export function createWorker(assets) {
         .filter((name) => asset[name] && (accepted.get(name) ?? 0) > 0)
         .sort((a, b) => accepted.get(b) - accepted.get(a))[0];
       const etag = encoding
-        ? asset.etag.slice(0, -1) + "-" + encoding + '"'
+        ? asset.etag.slice(0, -1) + "-" + encoding + '-manual"'
         : asset.etag;
       if (encoding) headers.set("Content-Encoding", encoding);
       headers.set(
@@ -69,6 +69,8 @@ export function createWorker(assets) {
             : asset.body;
       return new Response(body, {
         headers,
+        // Cloudflare must pass through these build-compressed bytes unchanged.
+        encodeBody: "manual",
       });
     },
   };
